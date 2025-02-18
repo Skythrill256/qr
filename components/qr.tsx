@@ -119,7 +119,7 @@ const QRScanner = () => {
       <CardHeader>
         <CardTitle>QR Code Scanner</CardTitle>
         <CardDescription>
-          Scan any QR code using your device's camera
+          Scan any QR code using your device camera
         </CardDescription>
       </CardHeader>
       <CardContent>
