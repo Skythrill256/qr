@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -25,29 +26,21 @@ const QRScanner = () => {
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
+  const controlsRef = useRef<any>(null); // To store the controls object
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      stopScanning();
-    };
-  }, []);
+    if (scanning && videoRef.current) {
+      startDecoding();
+    }
+    return () => stopScanning();
+  }, [scanning]);
 
-  // Start scanning for QR codes
-  const startScanning = async () => {
+  const startDecoding = async () => {
     try {
       setError(null);
       setResult(null);
-
       const codeReader = new BrowserQRCodeReader();
-      codeReaderRef.current = codeReader; // Store the codeReader instance
-      const videoElement = videoRef.current;
-
-      if (!videoElement) {
-        throw new Error('Video element not found');
-      }
-
-      // Get video input devices using Web API
+      codeReaderRef.current = codeReader;
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
 
@@ -56,11 +49,9 @@ const QRScanner = () => {
       }
 
       const selectedDeviceId = videoInputDevices[0].deviceId;
-
-      // Start decoding from the selected video device
-      await codeReader.decodeFromVideoDevice(
+      controlsRef.current = await codeReader.decodeFromVideoDevice(
         selectedDeviceId,
-        videoElement,
+        videoRef.current!,
         (result, error) => {
           if (result) {
             setResult({
@@ -70,33 +61,33 @@ const QRScanner = () => {
             });
             stopScanning();
           }
-
           if (error) {
             console.error(error);
             setError('Error scanning QR code. Please try again.');
           }
         }
       );
-
-      setScanning(true);
     } catch (err) {
       setError('Failed to access camera. Please ensure permissions are granted.');
       console.error('Error accessing camera:', err);
     }
   };
 
-  // Stop scanning and release camera resources
+  const startScanning = () => setScanning(true);
+
   const stopScanning = () => {
+    if (controlsRef.current) {
+      controlsRef.current.stop();
+      controlsRef.current = null;
+    }
     if (codeReaderRef.current) {
       codeReaderRef.current = null;
     }
     setScanning(false);
   };
 
-  // Handle downloading binary data from the QR code
   const handleDownload = () => {
     if (!result?.rawBytes) return;
-
     const blob = new Blob([new Uint8Array(result.rawBytes)], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -123,31 +114,25 @@ const QRScanner = () => {
           )}
 
           <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted">
+            <video
+              ref={videoRef}
+              className={`h-full w-full object-cover ${!scanning ? 'hidden' : ''}`}
+              autoPlay
+              playsInline
+              muted
+            />
             {scanning ? (
-              <>
-                <video
-                  ref={videoRef}
-                  className="h-full w-full object-cover"
-                  autoPlay
-                  playsInline
-                  muted
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  onClick={stopScanning}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                size="icon"
+                className="absolute top-2 right-2"
+                onClick={stopScanning}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             ) : (
               <div className="flex h-full items-center justify-center">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={startScanning}
-                >
+                <Button variant="outline" className="gap-2" onClick={startScanning}>
                   <Camera className="h-4 w-4" />
                   Start Scanning
                 </Button>
@@ -161,11 +146,7 @@ const QRScanner = () => {
               {result.rawBytes ? (
                 <div className="mt-2 space-y-2">
                   <p>Binary data detected ({result.rawBytes.length} bytes)</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDownload}
-                  >
+                  <Button variant="outline" size="sm" onClick={handleDownload}>
                     Download Binary Data
                   </Button>
                 </div>
